@@ -1,17 +1,13 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
-
-# Assume list_audio_devices and AudioRouter classes are defined as above
-
-import pyaudiowpatch as pyaudio # Assuming pyaudiowpatch is installed
-
 import pyaudiowpatch as pyaudio
 import numpy as np
 import threading
 import time
+import pyaudiowpatch as pyaudio
 
-# Helper function to get supported rates (keep this from previous discussion)
+# Helper function to get supported rates
 def get_supported_sample_rates_for_device(p, device_index, input_or_output='output'):
     """Tests common sample rates for a given device."""
     info = p.get_device_info_by_index(device_index)
@@ -50,7 +46,7 @@ def get_supported_sample_rates_for_device(p, device_index, input_or_output='outp
             stream.close()
             supported_rates.append(rate)
         except Exception as e:
-            pass # Don't print for every unsupported rate
+            pass
     return supported_rates
 
 class AudioRouter:
@@ -95,7 +91,6 @@ class AudioRouter:
             raise Exception(f"Could not find a WASAPI loopback device for primary output: {self.primary_info['name']}")
 
         # Determine common audio parameters based on the loopback device
-        # The loopback's properties tell us what it will output
         self.common_sample_rate = int(self.loopback_info['defaultSampleRate'])
         self.common_channels = self.loopback_info['maxInputChannels'] # Loopback maxInputChannels is its output channels
         self.common_format = pyaudio.paInt16 # Using 16-bit integer format
@@ -105,13 +100,13 @@ class AudioRouter:
         
         if self.common_sample_rate not in secondary_supported_rates:
             print(f"WARNING: Secondary device '{self.secondary_info['name']}' does not directly support the primary loopback sample rate ({self.common_sample_rate} Hz).")
-            # Fallback strategy: find a common rate
+            # Fallback: find a common rate
             fallback_rates = [48000, 44100] # Prioritize 48kHz, then 44.1kHz
             found_fallback = False
             for rate in fallback_rates:
                 if rate in secondary_supported_rates and self.p.is_format_supported(
-                    self.common_sample_rate, # The rate we will use for loopback
-                    self.common_channels,   # The channels we will use for loopback
+                    self.common_sample_rate, # The rate used for the loopback
+                    self.common_channels,   # The channels used for the loopback
                     self.common_format,
                     input_device=self.loopback_device_index
                 ) and self.p.is_format_supported(
@@ -129,10 +124,9 @@ class AudioRouter:
         
         # Validate channels: secondary device must support at least common_channels
         if self.secondary_info['maxOutputChannels'] < self.common_channels:
-             # This is a more severe issue, might need to downmix or raise error
+             # Severe Issue
              print(f"WARNING: Secondary device '{self.secondary_info['name']}' only supports {self.secondary_info['maxOutputChannels']} output channels, but primary loopback provides {self.common_channels}. Attempting to use primary channels.")
-             # You might need to add logic here to downmix if channels mismatch and it causes issues.
-             # For now, we'll try to push common_channels. PyAudio might handle it or error.
+             # Might need to add logic to downmix if channels mismatch
              # self.common_channels = min(self.common_channels, self.secondary_info['maxOutputChannels'])
 
         print(f"Audio parameters chosen: Rate={self.common_sample_rate} Hz, Channels={self.common_channels}, Format={self.common_format}")
@@ -140,14 +134,7 @@ class AudioRouter:
     def _audio_callback(self, in_data, frame_count, time_info, status):
         audio_data = np.frombuffer(in_data, dtype=np.int16) 
 
-        # REMOVE THIS BLOCK
-        # if self.primary_output_stream and self.primary_output_stream.is_active():
-        #     try:
-        #         self.primary_output_stream.write(audio_data.tobytes())
-        #     except Exception as e:
-        #         print(f"Error writing to primary device in callback: {e}")
-
-        # This is the only output you need
+        # for setting secondary output stream
         if self.secondary_output_stream and self.secondary_output_stream.is_active():
             try:
                 self.secondary_output_stream.write(audio_data.tobytes())
@@ -166,9 +153,7 @@ class AudioRouter:
 
     def _run_routing(self):
         try:
-            # REMOVE THIS BLOCK if the primary device is already playing
-            # If you remove this, the primary device continues to play Audio
-            # directly, and your app only adds the secondary device.
+            # block to control primary output stream, in case not activily playing
             # self.primary_output_stream = self.p.open(
             #     format=self.common_format,
             #     channels=self.common_channels,
@@ -179,7 +164,7 @@ class AudioRouter:
             # )
             # print(f"Opened primary output stream on {self.primary_info['name']}")
 
-            # Open the secondary output stream (this is the one you NEED)
+            # Open the secondary output stream
             self.secondary_output_stream = self.p.open(
                 format=self.common_format,
                 channels=self.common_channels,
@@ -190,7 +175,7 @@ class AudioRouter:
             )
             print(f"Opened secondary output stream on {self.secondary_info['name']}")
 
-            # Open the loopback input stream (this is your source)
+            # Open the loopback input stream
             self.stream = self.p.open(
                 format=self.common_format,
                 channels=self.common_channels,
@@ -257,69 +242,95 @@ class AudioRouter:
             self.shutdown()
 
 
-import pyaudiowpatch as pyaudio
-from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
-
 def list_audio_devices():
-    p = pyaudio.PyAudio()
+    p = None
     devices = []
+    seen_device_keys = set() 
+
+    EXCLUDE_DEVICE_NAMES = [
+        'Microsoft Sound Mapper - Input',
+        'Microsoft Sound Mapper - Output',
+        'Primary Sound Capture Driver',
+        'Primary Sound Driver',
+    ]
+
     try:
-        # Get host API info for WASAPI
-        wasapi_info = p.get_host_api_info_by_type(pyaudio.paWASAPI)
-    except OSError:
-        print("WASAPI not available.")
-        wasapi_info = None
+        p = pyaudio.PyAudio()
 
-    for i in range(p.get_device_count()):
-        info = p.get_device_info_by_index(i)
-        
-        device_name = info['name']
-        device_index = info['index']
-        device_is_loopback = False
+        wasapi_host_api_index = None
+        try:
+            wasapi_info = p.get_host_api_info_by_type(pyaudio.paWASAPI)
+            wasapi_host_api_index = wasapi_info['index']
+        except OSError as e:
+            wasapi_host_api_index = None
 
-        # Check for loopback devices specific to PyAudioWPatch
-        # PyAudioWPatch often adds an 'isLoopbackDevice' key or a clear naming convention
-        if info.get('isLoopbackDevice'):
-            device_is_loopback = True
-        elif wasapi_info and info['hostApi'] == wasapi_info['index'] and '[Loopback]' in device_name:
-            device_is_loopback = True
+        total_pyaudio_devices = p.get_device_count()
 
-        # Use .get() with a default value of 0 for channel counts
-        max_output_channels = info.get('maxOutputChannels', 0)
-        max_input_channels = info.get('maxInputChannels', 0)
+        # Iterate through ALL global PyAudio device indices
+        for i in range(total_pyaudio_devices):
+            try:
+                info = p.get_device_info_by_index(i) # Get info using the global index
 
-        # Only add devices that have *some* output or input capability
-        if max_output_channels > 0 or max_input_channels > 0:
-            devices.append({
-                'name': device_name,
-                'index': device_index,
-                'is_loopback': device_is_loopback,
-                'maxOutputChannels': max_output_channels, # Store the actual value or 0
-                'maxInputChannels': max_input_channels    # Store the actual value or 0
-            })
-    p.terminate()
+                device_name = info['name']
+                device_index = info['index'] # This is the global PyAudio index
+
+                if device_name in EXCLUDE_DEVICE_NAMES:
+                    continue
+
+                max_output_channels = info.get('maxOutputChannels', 0)
+                max_input_channels = info.get('maxInputChannels', 0)
+
+                # Create a unique key for deduplication.
+                device_key = None
+                if max_output_channels > 0: 
+                    device_key = (device_name, max_output_channels, 'output')
+                elif max_input_channels > 0: 
+                    device_key = (device_name, max_input_channels, 'input')
+                else:
+                    continue
+
+                if device_key in seen_device_keys:
+                    continue
+                
+                seen_device_keys.add(device_key) # Add the new unique key
+
+                device_is_loopback = info.get('isLoopbackDevice', False) 
+                
+                # Also check common naming convention for WASAPI loopback
+                if wasapi_host_api_index is not None and info['hostApi'] == wasapi_host_api_index:
+                    if '[Loopback]' in device_name:
+                        device_is_loopback = True
+
+                # If device has channels and is not a duplicate, add it
+                devices.append({
+                    'name': device_name,
+                    'index': device_index,
+                    'is_loopback': device_is_loopback,
+                    'maxOutputChannels': max_output_channels,
+                    'maxInputChannels': max_input_channels
+                })
+
+            except Exception as e:
+                import traceback # Import traceback here to keep it localized to this error handler
+                traceback.print_exc()
+                continue 
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return []
+
+    finally:
+        if p:
+            p.terminate()
+
     return devices
 
-# Example usage:
-# all_devices = list_audio_devices()
-# for device in all_devices:
-#     print(f"Name: {device['name']}, Index: {device['index']}, Loopback: {device['is_loopback']}")
 
-
-
-
-
-import tkinter as tk
-from tkinter import ttk, messagebox
-import threading
-
-# Assume list_audio_devices and AudioRouter classes are defined as above
-# (with the changes to AudioRouter to *not* re-route to the primary output)
-
-class AudioSplitterApp:
+class TwinPlay:
     def __init__(self, master):
         self.master = master
-        master.title("Dual Audio Output")
+        master.title("TwinPlay")
 
         self.audio_router = None
         self.devices = list_audio_devices() # Call the helper function to get device list
@@ -330,17 +341,15 @@ class AudioSplitterApp:
         self.setup_gui()
 
     def setup_gui(self):
-        # Primary Device Selection (This is the device that Spotify/apps will play to)
-        ttk.Label(self.master, text="Audio Source Device (e.g., Speakers):").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+        # Primary Device Selection
+        ttk.Label(self.master, text="Audio Source Device:").grid(row=0, column=0, padx=10, pady=5, sticky="w")
         self.primary_device_dropdown = ttk.Combobox(self.master, textvariable=self.primary_device_var, state="readonly")
-        # Now, d['maxOutputChannels'] will always exist, even if 0
         self.primary_device_dropdown['values'] = [d['name'] for d in self.devices if not d['is_loopback'] and d['maxOutputChannels'] > 0]
         self.primary_device_dropdown.grid(row=0, column=1, padx=10, pady=5, sticky="ew")
         self.primary_device_dropdown.bind("<<ComboboxSelected>>", self.on_primary_device_selected)
 
-        # ... (secondary device) ...
-        # Secondary Device Selection (This is where your app will route the audio)
-        ttk.Label(self.master, text="Secondary Output Device (e.g., Bluetooth Headphones):").grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        # Secondary Device Selection
+        ttk.Label(self.master, text="Secondary Output Device:").grid(row=1, column=0, padx=10, pady=5, sticky="w")
         self.secondary_device_dropdown = ttk.Combobox(self.master, textvariable=self.secondary_device_var, state="readonly")
         self.secondary_device_dropdown['values'] = [d['name'] for d in self.devices if not d['is_loopback'] and d['maxOutputChannels'] > 0]
         self.secondary_device_dropdown.grid(row=1, column=1, padx=10, pady=5, sticky="ew")
@@ -357,18 +366,18 @@ class AudioSplitterApp:
         self.status_label = ttk.Label(self.master, text="Status: Ready")
         self.status_label.grid(row=3, column=0, columnspan=2, padx=10, pady=5, sticky="w")
 
-        # Initial device selection (optional, but good for user experience)
+        # Initial device selection
         if len(self.devices) > 0:
-            # Try to pre-select the default output device as the primary source
+            # Pre-select the default output device as the primary source
             default_output_device_name = self.get_default_output_device_name()
             if default_output_device_name:
                 self.primary_device_var.set(default_output_device_name)
                 self.on_primary_device_selected(None) # Manually call handler
 
-            # Try to pre-select a different device for secondary if available
+            # Pre-select a different device for secondary if available
             available_for_secondary = [d['name'] for d in self.devices if not d['is_loopback'] and d['name'] != self.primary_device_var.get() and d['maxOutputChannels'] > 0]
             if available_for_secondary:
-                # Try to pick a Bluetooth device if available and not the primary
+                # Pick a Bluetooth device if available and not the primary
                 bluetooth_device = next((name for name in available_for_secondary if "bluetooth" in name.lower()), None)
                 if bluetooth_device:
                     self.secondary_device_var.set(bluetooth_device)
@@ -379,43 +388,32 @@ class AudioSplitterApp:
     def get_default_output_device_name(self):
         """Helper to find the currently set default output device name."""
         try:
-            import pycaw.pycaw as pycaw
-            sessions = pycaw.AudioUtilities.GetAllSessions()
-            for session in sessions:
-                if session.Process and session.Process.name() == "System": # System sounds often use default
-                    endpoint = session.GetAudioEndpoint()
-                    if endpoint:
-                        props = endpoint.GetProperties()
-                        # PKEY_Device_FriendlyName from mmdeviceapi.h
-                        # Use the specific property key for friendly name
-                        # This might vary slightly based on pycaw version/Windows.
-                        # A more robust way might be to iterate devices in PyAudio and find the default.
-                        p = pyaudio.PyAudio()
-                        default_output_index = p.get_default_output_device_info()['index']
-                        p.terminate()
-                        
-                        default_device = next((d for d in self.devices if d['index'] == default_output_index), None)
-                        if default_device:
-                            return default_device['name']
-            # Fallback if pycaw doesn't easily give it or isn't used
+            # Create a *new* PyAudio instance here
             p = pyaudio.PyAudio()
-            default_output_index = p.get_default_output_device_info()['index']
-            p.terminate()
+            
+            default_output_info = p.get_default_output_device_info()
+            default_output_index = default_output_info['index']
+            p.terminate() # Always terminate PyAudio instance created in a helper
+
+            print(f"PyAudio default output device index: {default_output_index}")
             default_device = next((d for d in self.devices if d['index'] == default_output_index), None)
+            
             if default_device:
+                print(f"Found default device: {default_device['name']}")
                 return default_device['name']
+            else:
+                print(f"Default output device (index {default_output_index}) not found in our gathered device list.")
+                return None
 
         except Exception as e:
-            print(f"Could not get default output device name via pycaw/pyaudio: {e}")
-        return None
+            print(f"Could not get default output device name via pyaudio: {e}")
+            return None
 
 
     def on_primary_device_selected(self, event):
         selected_name = self.primary_device_var.get()
         # Allow primary and secondary to be the same initially,
         # but the logic in AudioRouter will prevent feedback
-        # by not re-routing to primary. However, it might not make sense UX-wise.
-        # It's better to prevent selecting the same device for primary & secondary in the GUI.
         if selected_name == self.secondary_device_var.get() and selected_name != "":
             messagebox.showwarning("Warning", "The audio source device and secondary output device cannot be the same.")
             self.primary_device_var.set("") # Clear selection
@@ -453,7 +451,7 @@ class AudioSplitterApp:
     def stop_routing(self):
         if self.audio_router:
             self.audio_router.stop_routing()
-            # It's good practice to call shutdown here to ensure PyAudio is terminated
+            # call shutdown to ensure PyAudio is terminated
             self.audio_router.shutdown() 
             self.audio_router = None
         self.status_label.config(text="Status: Stopped")
@@ -466,12 +464,7 @@ class AudioSplitterApp:
         self.master.destroy()
 
 if __name__ == "__main__":
-    # Ensure all three parts (list_audio_devices, AudioRouter, AudioSplitterApp)
-    # are in the same script or correctly imported.
-    # The AudioRouter class must have the changes mentioned in the previous answer
-    # (i.e., not re-routing to the primary_output_stream).
-
     root = tk.Tk()
-    app = AudioSplitterApp(root)
+    app = TwinPlay(root)
     root.protocol("WM_DELETE_WINDOW", app.on_closing)
     root.mainloop()
