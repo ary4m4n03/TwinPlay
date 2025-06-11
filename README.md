@@ -6,4 +6,4 @@ TwinPlay is a lightweight Windows utility that lets you output audio to two devi
 - [Usage](#usage)
 
 
-##Installation
+## Installation
