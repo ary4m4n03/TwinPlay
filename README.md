@@ -13,15 +13,19 @@ TwinPlay is a lightweight Windows utility that lets you output audio to two devi
 ## Features
 
 Dropdown Menu:
+
 ![alt text](https://github.com/ary4m4n03/TwinPlay/blob/main/screenshots/dropdown.png?raw=true)
 
 Ready:
+
 ![alt text](https://github.com/ary4m4n03/TwinPlay/blob/main/screenshots/ready.png?raw=true)
 
 Routing Audio:
+
 ![alt text](https://github.com/ary4m4n03/TwinPlay/blob/main/screenshots/routing.png?raw=true)
 
 Stopped:
+
 ![alt text](https://github.com/ary4m4n03/TwinPlay/blob/main/screenshots/stopped.png?raw=true)
 
 ---
