@@ -9,10 +9,11 @@
 - [Screenshots](#screenshots)
 - [Installation](#installation)
 - [Usage](#usage)
+- [Dependencies](#dependencies)
 
 ---
 
-## Features ✨
+## Features
 * **Dual Audio Output:** Stream audio to two output devices simultaneously.
 * **Simple Interface:** A clean and intuitive GUI built with Python and Tkinter.
 * **Device Selection:** Easily select your desired primary and secondary audio devices from dropdown menus.
@@ -80,7 +81,7 @@ Using TwinPlay is straightforward:
 6.  To stop, simply click the **"Stop Routing"** button.
 ---
 
-## Dependencies 📦
+## Dependencies
 This project is built with Python and relies on the following major libraries:
 
 * **Tkinter:** For the graphical user interface. (Standard with Python)
