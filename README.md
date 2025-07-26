@@ -55,7 +55,7 @@ You can get TwinPlay up and running in two ways.
 1.  Ensure you have **Python 3.8+** installed.
 2.  Clone this repository:
     ```bash
-    git clone [!https://github.com/ary4m4n03/TwinPlay.git](https://github.com/ary4m4n03/TwinPlay.git)
+    git clone https://github.com/ary4m4n03/TwinPlay.git
     ```
 3.  Navigate into the project directory:
     ```bash
