@@ -16,7 +16,7 @@
 
 ## Features
 * **Dual Audio Output:** Stream audio to two output devices simultaneously.
-* **Simple Interface:** A clean and intuitive GUI built with Python and Tkinter.
+* **Simple Interface:** A clean and intuitive UI built with Python and Tkinter.
 * **Device Selection:** Easily select your desired primary and secondary audio devices from dropdown menus.
 * **Real-time Control:** Start and stop audio routing with a single click.
 * **Lightweight:** Minimal resource footprint, designed specifically for Windows.
@@ -46,7 +46,7 @@ Stopped:
 ## Installation
 You can get TwinPlay up and running in two ways.
 
-### Method 1: Download from Releases
+### Method 1: Download from Releases (Recommended)
 1.  Go to the project's [**Releases**](https://github.com/ary4m4n03/TwinPlay/releases) page.
 2.  Download the latest `TwinPlay.exe` file from the latest release.
 3.  Run `TwinPlay.exe`. No installation is required!
@@ -85,7 +85,7 @@ Using TwinPlay is straightforward:
 ## Dependencies
 This project is built with Python and relies on the following major libraries:
 
-* **Tkinter:** For the graphical user interface. (Standard with Python)
+* **Tkinter:** For the user interface.
 * **pycaw:** For controlling audio devices on Windows.
 * **pyaudio:** For audio stream handling.
 
