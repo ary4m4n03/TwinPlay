@@ -5,10 +5,9 @@ import pyaudiowpatch as pyaudio
 import numpy as np
 import threading
 import time
-import pyaudiowpatch as pyaudio
 
 # Helper function to get supported rates
-def get_supported_sample_rates_for_device(p, device_index, input_or_output='output'):
+def get_supported_rates(p, device_index, io='output'):
     """Tests common sample rates for a given device."""
     info = p.get_device_info_by_index(device_index)
     supported_rates = []
@@ -18,12 +17,12 @@ def get_supported_sample_rates_for_device(p, device_index, input_or_output='outp
         try:
             format = pyaudio.paInt16
             channels = 1 # Start with mono to maximize compatibility for testing
-            if input_or_output == 'output' and info['maxOutputChannels'] >= 2:
+            if io == 'output' and info['maxOutputChannels'] >= 2:
                 channels = 2
-            elif input_or_output == 'input' and info['maxInputChannels'] >= 2:
+            elif io == 'input' and info['maxInputChannels'] >= 2:
                 channels = 2
 
-            if input_or_output == 'output':
+            if io == 'output':
                 stream = p.open(
                     format=format,
                     channels=channels,
@@ -96,7 +95,7 @@ class AudioRouter:
         self.common_format = pyaudio.paInt16 # Using 16-bit integer format
 
         # Add a check that the secondary device actually supports this rate and channels
-        secondary_supported_rates = get_supported_sample_rates_for_device(self.p, self.secondary_device_index, 'output')
+        secondary_supported_rates = get_supported_rates(self.p, self.secondary_device_index, 'output')
         
         if self.common_sample_rate not in secondary_supported_rates:
             print(f"WARNING: Secondary device '{self.secondary_info['name']}' does not directly support the primary loopback sample rate ({self.common_sample_rate} Hz).")
@@ -247,11 +246,12 @@ def list_audio_devices():
     devices = []
     seen_device_keys = set() 
 
+    # Exclude devices that are logical pointers or aliases used by Windows
     EXCLUDE_DEVICE_NAMES = [
         'Microsoft Sound Mapper - Input',
         'Microsoft Sound Mapper - Output',
         'Primary Sound Capture Driver',
-        'Primary Sound Driver',
+        'Primary Sound Driver'
     ]
 
     try:
@@ -266,7 +266,7 @@ def list_audio_devices():
 
         total_pyaudio_devices = p.get_device_count()
 
-        # Iterate through ALL global PyAudio device indices
+        # Iterate through all global PyAudio device indices
         for i in range(total_pyaudio_devices):
             try:
                 info = p.get_device_info_by_index(i) # Get info using the global index
@@ -412,8 +412,7 @@ class TwinPlay:
 
     def on_primary_device_selected(self, event):
         selected_name = self.primary_device_var.get()
-        # Allow primary and secondary to be the same initially,
-        # but the logic in AudioRouter will prevent feedback
+        # Allow primary and secondary to be the same initially, but the logic in AudioRouter will prevent feedback
         if selected_name == self.secondary_device_var.get() and selected_name != "":
             messagebox.showwarning("Warning", "The audio source device and secondary output device cannot be the same.")
             self.primary_device_var.set("") # Clear selection
