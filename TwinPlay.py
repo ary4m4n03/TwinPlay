@@ -5,6 +5,14 @@ import pyaudiowpatch as pyaudio
 import numpy as np
 import threading
 import time
+import os, sys
+
+def resource_path(filename):
+    if hasattr(sys, "_MEIPASS"):
+        # Running from a PyInstaller bundle
+        return os.path.join(sys._MEIPASS, filename)
+    # Running in normal Python
+    return os.path.join(os.path.dirname(__file__), filename)
 
 # Helper function to get supported rates
 def get_supported_rates(p, device_index, io='output'):
@@ -465,6 +473,7 @@ class TwinPlay:
 if __name__ == "__main__":
     root = tk.Tk()
     app = TwinPlay(root)
-    root.iconbitmap('TwinPlay.ico')
+    icon_path = resource_path("TwinPlay.ico")
+    root.iconbitmap(icon_path)
     root.protocol("WM_DELETE_WINDOW", app.on_closing)
     root.mainloop()
